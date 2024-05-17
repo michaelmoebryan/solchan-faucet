@@ -1,0 +1,22 @@
+[package]
+name = "solchain-facuet"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+anchor-lang = { version = "0.26.0", features = ["init-if-needed"] }
+solana-program = "1.18.13"
+
+[patch.crates-io]
+blake3 = { version = "1.4.1", package = "blake3" }
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "anchor_facuet"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
