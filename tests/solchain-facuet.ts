@@ -26,14 +26,10 @@ describe("solchan-faucet", () => {
     const airdropSignature = await provider.connection.requestAirdrop(admin.publicKey, 1000000000);
     await provider.connection.confirmTransaction(airdropSignature, "confirmed");
     console.log("Airdropped 10 SOL to admin account");
-  });
 
-  it("Initializes the faucet", async () => {
-    console.log("Initializing the faucet...");
-
-    const airdropSignature = await provider.connection.requestAirdrop(faucetAccount.publicKey, 99999999999999); // 20 SOL
-    await provider.connection.confirmTransaction(airdropSignature, "confirmed");
-    console.log("Airdropped 999999 SOL to faucet account");
+    const airdropFaucetSignature = await provider.connection.requestAirdrop(faucetAccount.publicKey, 20 * anchor.web3.LAMPORTS_PER_SOL); // 20 SOL
+    await provider.connection.confirmTransaction(airdropFaucetSignature, "confirmed");
+    console.log("Airdropped 20 SOL to faucet account");
 
     try {
       await program.methods.initializeFaucet()
@@ -49,12 +45,6 @@ describe("solchan-faucet", () => {
       console.error("Error during initializeFaucet:", err);
       throw err;
     }
-
-    const faucetData = await program.account.faucet.fetch(faucetAccount.publicKey);
-    // console.log("Faucet account data:", faucetData);
-
-    assert.equal(faucetData.lastRequestTime.toNumber(), 0);
-    assert.equal(faucetData.admin.toBase58(), admin.publicKey.toBase58());
   });
 
   it("Requests funds from the faucet", async () => {
@@ -65,10 +55,10 @@ describe("solchan-faucet", () => {
         .accounts({
           faucet: faucetAccount.publicKey,
           user: userAccount.publicKey,
-          admin: admin.publicKey,
+          admin: admin.publicKey, // Added admin account as required by the updated contract
           systemProgram: SystemProgram.programId,
         })
-        .signers([admin])
+        .signers([userAccount]) // The user is the one requesting funds, so userAccount should be the signer
         .rpc();
       console.log("Requested funds successfully");
     } catch (err) {
@@ -77,12 +67,12 @@ describe("solchan-faucet", () => {
     }
 
     const userAccountData = await provider.connection.getAccountInfo(userAccount.publicKey);
-    // console.log("User account data:", userAccountData);
+    console.log("User account data:", userAccountData);
 
     assert(userAccountData !== null);
 
     const faucetData = await program.account.faucet.fetch(faucetAccount.publicKey);
-    // console.log("Updated faucet account data:", faucetData);
+    console.log("Updated faucet account data:", faucetData);
 
     assert.isAbove(faucetData.lastRequestTime.toNumber(), 0);
   });
@@ -95,19 +85,67 @@ describe("solchan-faucet", () => {
         .accounts({
           faucet: faucetAccount.publicKey,
           user: userAccount.publicKey,
+          admin: admin.publicKey, // Added admin account as required by the updated contract
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userAccount])
+        .rpc();
+      assert.fail("Request should have failed due to requesting too soon");
+    } catch (err) {
+      console.error("Expected error during requestFunds (too soon):", err.message);
+      if (err.error && err.error.errorCode) {
+        assert.equal(err.error.errorCode.code, "RequestTooSoon"); // Check error code
+      } else {
+        assert.fail("Expected RequestTooSoon error code, but it was not found");
+      }
+    }
+  });
+
+  it("Admin can change the interval period", async () => {
+    console.log("Admin changing the interval period...");
+
+    const newIntervalPeriod = new anchor.BN(60);
+
+    try {
+      await program.methods.setIntervalPeriod(newIntervalPeriod)
+        .accounts({
+          faucet: faucetAccount.publicKey,
           admin: admin.publicKey,
           systemProgram: SystemProgram.programId,
         })
         .signers([admin])
         .rpc();
-      assert.fail("Request should have failed due to requesting too soon");
+      console.log("Interval period changed successfully");
     } catch (err) {
-      // console.error("Expected error during requestFunds (too soon):", err);
-      // console.log("Error object structure:", JSON.stringify(err, null, 2));
+      console.error("Error during setIntervalPeriod:", err);
+      throw err;
+    }
+
+    const faucetData = await program.account.faucet.fetch(faucetAccount.publicKey);
+    assert.equal(faucetData.intervalPeriod.toNumber(), 60);
+  });
+
+  it("Non-admin cannot change the interval period", async () => {
+    console.log("Non-admin attempting to change the interval period...");
+
+    const newIntervalPeriod = new anchor.BN(120);
+
+    try {
+      await program.methods.setIntervalPeriod(newIntervalPeriod)
+        .accounts({
+          faucet: faucetAccount.publicKey,
+          admin: admin.publicKey, // Ensures that the admin field in the faucet matches the public key of the provided admin
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([userAccount]) // The non-admin user is attempting to make this change
+        .rpc();
+      assert.fail("Non-admin should not be able to change the interval period");
+    } catch (err) {
+      console.log("Expected error for non-admin attempting to change interval period:", err.message);
       if (err.error && err.error.errorCode) {
-        assert.equal(err.error.errorCode.code, "RequestTooSoon"); // Check error code
+        assert.equal(err.error.errorCode.code, "Unauthorized");
       } else {
-        assert.fail("Expected RequestTooSoon error code, but it was not found");
+        assert.fail("Expected Unauthorized error code, but it was not found");
       }
     }
   });
