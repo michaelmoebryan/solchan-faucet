@@ -1564,7 +1564,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "solchain-facuet"
+name = "solchan-faucet"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",

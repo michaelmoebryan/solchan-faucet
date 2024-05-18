@@ -2,14 +2,14 @@ import { describe, it, before } from "mocha";
 import { assert } from "chai";
 import * as anchor from "@project-serum/anchor";
 import { PublicKey, SystemProgram, Keypair } from "@solana/web3.js";
-import { SolchainFaucet } from "../target/types/solchain_faucet";  // Adjust the import path as necessary
+import { SolchanFaucet } from "../target/types/solchan_faucet";  // Adjust the import path as necessary
 
-describe("solchain-faucet", () => {
+describe("solchan-faucet", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.local();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.SolchainFaucet as anchor.Program<SolchainFaucet>;
+  const program = anchor.workspace.SolchanFaucet as anchor.Program<SolchanFaucet>;
 
   const faucetAccount = Keypair.generate();
   console.log("Generated faucet account:", faucetAccount.publicKey.toBase58());
